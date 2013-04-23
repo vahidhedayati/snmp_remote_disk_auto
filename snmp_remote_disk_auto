@@ -33,15 +33,10 @@ echo "$0 localhost public  1024"
 
 }
 
-
-server=$1;
-pass=$2
-limit=$3;
-
 errors_found="";
 partitions_found="";
 lower_limit=10;
-
+graphtext="|"
 
 if [ $# -lt 3 ]; then
     usage;
@@ -50,7 +45,7 @@ fi
 
 # takes <size> <used> <allocation>
 calc_free() {
-  echo "$1 $2 - $3 * 1024 / 1024 / p" | dc
+	echo "$1 $2 - $3 * 1024 / 1024 / p" | dc
 }
 
 	for partitions in $($snmpwalk -v2c -c $pass -Oq $server  hrStorageDescr|grep /|awk '{print $NF}'); do
@@ -63,21 +58,24 @@ calc_free() {
 			free=$(calc_free$args)
 			if [ "$free" -gt "$limit" ]
 			then
+				graphtext=$graphtext$partitions"="$free"MB;;;0 "
 				partitions_found=$partitions_found" $partitions ($free MB)"
 			else
+				graphtext=$graphtext$partitions"="$free"MB;;;0 "
 				errors_found=$errors_found" $partitions ($free MB)"
 				
 			fi
 	
 		else
-			 errors_found=$errors_found" $paritions does_not_exist_or_snmp_is_not_responding"
+			graphtext=$graphtext$partitions"="0"MB;;;0 "
+			errors_found=$errors_found" $paritions does_not_exist_or_snmp_is_not_responding"
 		fi
 	done
 
 	if [ "$errors_found" == "" ]; then
-		echo "OK: $partitions_found"
+		echo "OK: $partitions_found$graphtext"
 		exit 0
 	else
-		echo "CRITICAL: $errors_found";
+		echo "CRITICAL: $errors_found$graphtext";
 		exit 2;
 	fi
