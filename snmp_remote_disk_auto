@@ -33,6 +33,11 @@ echo "$0 localhost public  1024"
 
 }
 
+
+server=$1;
+pass=$2
+limit=$3;
+
 errors_found="";
 partitions_found="";
 lower_limit=10;
@@ -47,29 +52,34 @@ fi
 calc_free() {
 	echo "$1 $2 - $3 * 1024 / 1024 / p" | dc
 }
-
-	for partitions in $($snmpwalk -v2c -c $pass -Oq $server  hrStorageDescr|grep /|awk '{print $NF}'); do
+	IFS=$'\n'
+	for results in $($snmpwalk -v2c -c $pass -Oq $server  hrStorageDescr|grep /|egrep -v "(/mnt|/home|/proc|/sys)"); do
+		ret_result=${results##*.}
+		partitions=${ret_result##* }
+		index=${ret_result%% *}
 		if [[ $partitions =~ /boot ]]; then
 			limit=$lower_limit;
 		fi
-		if result=$($snmpwalk -v2c -c $pass -Oq $server hrStorageDescr | grep "$partitions$"); then
-			index=$(echo $result | sed 's/.*hrStorageDescr//' | sed 's/ .*//')
-			args=$($snmpget -v2c -c $pass -Oqv $server hrStorageSize$index hrStorageUsed$index hrStorageAllocationUnits$index | while read oid j ; do printf " $oid" ; done)
-			free=$(calc_free$args)
+		IFS=' ';
+		args=$($snmpget -v2c -c $pass -Oqv $server hrStorageSize.$index hrStorageUsed.$index hrStorageAllocationUnits.$index | while read oid j ; do printf " $oid" ; done)
+		free=$(calc_free$args)
+			back_count=$(echo $partitions|grep -o "/"|wc -l)
+			if [[ $back_count -ge 2 ]]; then
+				gpartition=$(echo "/"${partitions##*/})
+			else
+				gpartition=$partitions;
+			fi
+
 			if [ "$free" -gt "$limit" ]
 			then
-				graphtext=$graphtext$partitions"="$free"MB;;;0 "
+				graphtext=$graphtext$gpartition"="$free"MB;;;0 "
 				partitions_found=$partitions_found" $partitions ($free MB)"
 			else
-				graphtext=$graphtext$partitions"="$free"MB;;;0 "
+				graphtext=$graphtext$gpartition"="$free"MB;;;0 "
 				errors_found=$errors_found" $partitions ($free MB)"
 				
 			fi
 	
-		else
-			graphtext=$graphtext$partitions"="0"MB;;;0 "
-			errors_found=$errors_found" $paritions does_not_exist_or_snmp_is_not_responding"
-		fi
 	done
 
 	if [ "$errors_found" == "" ]; then
