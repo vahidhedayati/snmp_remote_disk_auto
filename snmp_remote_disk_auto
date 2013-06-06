@@ -19,18 +19,20 @@
 # This script takes:
 # <host> <community> <megs>
 
+# -t 60 added to increase snmp timeout 
+# sleep added within for loop to stop snmp flooding
+
 snmpwalk="/usr/bin/snmpwalk"
 snmpget="/usr/bin/snmpget"
 
 function usage() { 
-echo "$0 localhost public 100"
-echo "where localhost is server"
-echo "public is snmp pass"
-echo "100 is when it reaches below a 100Mb"
-echo "-----------------------------------"
-echo "define threshold below limit specific for partitions i.e. boot can be 50mb where as /var I guess we want to catch it at around 1 gig so"
-echo "$0 localhost public  1024"
-
+	echo "$0 localhost public 100"
+	echo "where localhost is server"
+	echo "public is snmp pass"
+	echo "100 is when it reaches below a 100Mb"
+	echo "-----------------------------------"
+	echo "define threshold below limit specific for partitions i.e. boot can be 50mb where as /var I guess we want to catch it at around 1 gig so"
+	echo "$0 localhost public  1024"
 }
 
 
@@ -53,7 +55,7 @@ calc_free() {
 	echo "$1 $2 - $3 * 1024 / 1024 / p" | dc
 }
 	IFS=$'\n'
-	for results in $($snmpwalk -v2c -c $pass -Oq $server  hrStorageDescr|grep /|egrep -v "(/mnt|/home|/proc|/sys)"); do
+	for results in $($snmpwalk -v2c -t 60 -c $pass -Oq $server  hrStorageDescr|grep /|egrep -v "(/mnt|/home|/proc|/sys)"); do
 		ret_result=${results##*.}
 		partitions=${ret_result##* }
 		index=${ret_result%% *}
@@ -61,7 +63,7 @@ calc_free() {
 			limit=$lower_limit;
 		fi
 		IFS=' ';
-		args=$($snmpget -v2c -c $pass -Oqv $server hrStorageSize.$index hrStorageUsed.$index hrStorageAllocationUnits.$index | while read oid j ; do printf " $oid" ; done)
+		args=$($snmpget -v2c -t 60 -c $pass -Oqv $server hrStorageSize.$index hrStorageUsed.$index hrStorageAllocationUnits.$index | while read oid j ; do printf " $oid" ; done)
 		free=$(calc_free$args)
 			back_count=$(echo $partitions|grep -o "/"|wc -l)
 			if [[ $back_count -ge 2 ]]; then
@@ -79,7 +81,7 @@ calc_free() {
 				errors_found=$errors_found" $partitions ($free MB)"
 				
 			fi
-	
+		sleep 2;
 	done
 
 	if [ "$errors_found" == "" ]; then
